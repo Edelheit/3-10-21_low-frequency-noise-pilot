@@ -1,0 +1,165 @@
+---
+title: "Low-frequency sound and nocebo"
+author: "Kip Elder"
+date: "3/10/2021"
+output:
+  word_document: default
+---
+
+# Load data
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load packages
+library(tidyverse)
+library(haven)
+library(labelled)
+library(coin)
+library(rstatix)
+
+# Import low-frequency noise dataset
+df <- read_sav("./data/low_freq_pilot_march.sav")
+
+# Remove labels (convert to factors/numeric)
+df <- df %>% 
+  unlabelled()
+
+```
+
+# Clean df
+```{r}
+# Rename follow-up symptom rating scales
+df <- df %>% 
+  rename(tingling_rating = Q23_1, 
+         pressure_rating = Q23_2, 
+         anxious_rating = Q23_3, 
+         tired_rating = Q23_4, 
+         dizziness_rating = Q23_5, 
+         salivate_rating = Q23_6, 
+         headache_rating = Q23_7, 
+         throat_rating = Q23_8, 
+         nausea_rating = Q23_9,
+         gender = Q26,
+         age = Q27)
+
+names(df)
+
+table(df$Group)
+
+# Filter data for grouping variable (warning/no information) and follow-up symptom ratings
+df <- df %>% 
+  dplyr::select(tingling_rating:nausea_rating,
+                Group:Nausea,
+                gender,
+                age)
+
+names(df)
+
+# Item check
+df$x <- as.numeric(df$headache_rating)
+table(df$x, df$headache_rating)
+
+# Coding matches, therefore recode all side effect ratings as.numeric
+df <- df %>% 
+  mutate(across(tingling_rating:nausea_rating, as.numeric))
+
+```
+
+# Descriptive statistics
+```{r}
+
+# library
+library(psych)
+library(gmodels)
+
+# check gender differences
+CrossTable(df$gender, df$Group,
+           expected = TRUE,
+           chisq = TRUE,
+           fisher = TRUE,
+           resid = TRUE,
+           format = "SPSS")
+
+
+# check for age differences
+levels(df$age)
+
+df$age_2 <- as.numeric(as.character(df$age))
+
+describe(df$age_2)
+
+kruskal.test(df$Group ~ df$age_2)
+
+summary(df$nausea_rating)
+
+```
+
+# Statistical analysis
+```{r}
+# Non-normal distributions. E.g., 'vibrating or tingling sensations'
+hist(df$tingling_rating, main = "Post-exposure tingling rating", xlab = "Tingling rating")
+```
+
+
+```{r analysis}
+## Test each symptom per grouping var
+
+# Tingling
+wilcox.test(df$tingling_rating ~ df$Tingling, na.rm = TRUE)
+
+# Tired
+wilcox.test(df$tired_rating ~ df$Tired)
+
+# Anxious
+wilcox.test(df$anxious_rating ~ df$Anxious)
+
+# Salivate
+wilcox.test(df$salivate_rating ~ df$Salivate)
+
+# Throat
+wilcox.test(df$throat_rating ~ df$Throat)
+
+# Pressure
+wilcox.test(df$pressure_rating ~ df$Pressure)
+
+# 'Dizziness or blurred vision'
+wilcox.test(df$dizziness_rating ~ df$Dizziness)
+
+effect_dizz <- df %>% 
+  wilcox_effsize(dizziness_rating ~ Dizziness)
+
+# 'Dull headache'
+wilcox.test(df$headache_rating ~ df$Headache)
+
+effect_head <- df %>% 
+  wilcox_effsize(headache_rating ~ Headache)
+
+# 'Nausau or queasiness'
+wilcox.test(df$nausea_rating ~ df$Nausea)
+
+effect_naus <- df %>% 
+  wilcox_effsize(nausea_rating ~ Nausea)
+
+effect_dizz 
+effect_head 
+effect_naus
+
+```
+
+
+```{r}
+# Create prop.table data frames for each symptom and multiply by 100 (by row) to get percentages
+# Dizziness:
+prop.table(table(df$Dizziness, df$dizziness_rating), 1)*100
+
+# Headache:
+prop.table(table(df$Headache, df$headache_rating), 1)*100
+
+# Nausea:
+prop.table(table(df$Nausea, df$nausea_rating), 1)*100
+```
+
+Considering the bulk of participants rated 'Not at all (0)' on symptom ratings, the differences between "no information" and "warned" groups for each side effect in those lower ratings looks substantial. Take dizziness for example, where 92% of non-warned participants reported no dizziness symptoms that dropped to 75% when participants were warned. What's more, fully 10% of participants in the warned condition for dizziness reported symptoms at the high end of the scale compared to none in the no information group, indicating not only did fewer people report no symptoms in the warned group, they reported **stronger** symptoms. This pattern plays out more-or-less across all three significant symptoms.
+
+
+
